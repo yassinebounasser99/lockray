@@ -1,0 +1,37 @@
+{
+  "name": "lockray",
+  "version": "0.1.0",
+  "description": "X-ray your lockfile diffs: catch lockfile injection, tampered packages, install scripts and typosquats before they merge.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "lockray": "dist/cli.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.mjs --banner:js='#!/usr/bin/env node'",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "lockfile",
+    "package-lock",
+    "yarn.lock",
+    "supply-chain",
+    "security",
+    "github-action",
+    "npm",
+    "dependencies"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.18.8",
+    "esbuild": "^0.25.10",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
