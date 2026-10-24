@@ -14,7 +14,7 @@ Every dependency update ships a `package-lock.json` diff that is thousands of li
 - **Install scripts:** a new indirect dependency quietly runs code on every `npm install`.
 - **Typosquats:** `expresss`, `lodahs`, `react_dom`.
 
-`npm audit` doesn't catch any of these, because it only knows about published CVEs. lockray reads the diff for you and tells you, in plain language, what actually changed and what looks dangerous.
+`npm audit` looks for known vulnerabilities in what's already installed; it doesn't review what a pull request changes in the lockfile. lockray reads that diff before anything is installed and tells you, in plain language, what actually changed and what looks dangerous.
 
 ```text
 $ npx github:yassinebounasser99/lockray examples/before.package-lock.json examples/after.package-lock.json
