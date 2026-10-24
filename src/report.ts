@@ -64,6 +64,23 @@ const SEV_TEXT: Record<Severity, (s: string) => string> = {
   info: c.gray,
 };
 
+/** Wraps at spaces (and after " → ") so long URLs don't push the terminal sideways. */
+function wrap(text: string, width: number, indent: string): string {
+  const words = text.replace(/ → /g, " →\u0000").split(/ |\u0000/);
+  const lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    if (line && line.length + 1 + w.length > width) {
+      lines.push(line);
+      line = w;
+    } else {
+      line = line ? `${line} ${w}` : w;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.map((l) => indent + l).join("\n");
+}
+
 export function formatText(report: Report): string {
   const out: string[] = [];
   out.push(c.bold(`lockray`) + c.gray(`  ${report.base} → ${report.head}`));
@@ -83,7 +100,7 @@ export function formatText(report: Report): string {
     }
     for (const x of sortFindings(collapseFindings(f.findings))) {
       out.push(`  ${SEV_TEXT[x.severity](x.severity.toUpperCase().padEnd(6))} ${c.bold(x.package)}${x.version ? c.gray(`@${x.version}`) : ""} ${c.gray(`[${x.rule}]`)}`);
-      out.push(`         ${x.message}`);
+      out.push(wrap(x.message, Math.max(60, (process.stdout.columns || 110) - 12), "         "));
     }
   }
   const counts = countBySeverity(report, true);

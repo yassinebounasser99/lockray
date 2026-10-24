@@ -8017,6 +8017,21 @@ var SEV_TEXT = {
   low: c.blue,
   info: c.gray
 };
+function wrap(text, width, indent) {
+  const words = text.replace(/ → /g, " \u2192\0").split(/ |\u0000/);
+  const lines = [];
+  let line = "";
+  for (const w of words) {
+    if (line && line.length + 1 + w.length > width) {
+      lines.push(line);
+      line = w;
+    } else {
+      line = line ? `${line} ${w}` : w;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.map((l) => indent + l).join("\n");
+}
 function formatText(report) {
   const out = [];
   out.push(c.bold(`lockray`) + c.gray(`  ${report.base} \u2192 ${report.head}`));
@@ -8036,7 +8051,7 @@ function formatText(report) {
     }
     for (const x of sortFindings(collapseFindings(f.findings))) {
       out.push(`  ${SEV_TEXT[x.severity](x.severity.toUpperCase().padEnd(6))} ${c.bold(x.package)}${x.version ? c.gray(`@${x.version}`) : ""} ${c.gray(`[${x.rule}]`)}`);
-      out.push(`         ${x.message}`);
+      out.push(wrap(x.message, Math.max(60, (process.stdout.columns || 110) - 12), "         "));
     }
   }
   const counts = countBySeverity(report, true);
