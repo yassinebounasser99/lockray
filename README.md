@@ -79,7 +79,27 @@ The comment is **sticky**: re-runs update it instead of adding new ones. Here is
 | `min-age` | `3` | Flag versions published fewer than N days ago |
 | `allow-host` | | Comma-separated private registry hosts to trust |
 | `comment` | `true` | Post the sticky PR comment (the report always goes to the job summary) |
+| `sarif` | `false` | Also write a SARIF report (see below) |
 | `working-directory` | `.` | Where the lockfile lives |
+
+**Findings in the Security tab.** Set `sarif: true` and upload the report to GitHub code scanning. Alerts point at the exact line in the lockfile:
+
+```yaml
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: yassinebounasser99/lockray@v0
+        id: lockray
+        with:
+          sarif: true
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ${{ steps.lockray.outputs.sarif-file }}
+```
 
 The Action never installs your dependencies: it only reads lockfile text, so it's safe to run on untrusted PRs.
 
@@ -101,8 +121,9 @@ npx github:yassinebounasser99/lockray old.json new.json --online --format json
 | `-b, --base <ref>` | git ref to compare against (default `HEAD`, or the PR's target branch in CI) |
 | `--head <ref>` | git ref to compare (default: the working tree) |
 | `-f, --file <path>` | lockfile(s) to check (default: auto-detect) |
-| `--format` | `text`, `markdown` or `json` |
+| `--format` | `text`, `markdown`, `json` or `sarif` |
 | `-o, --output <path>` | write the report to a file |
+| `--sarif <path>` | also write a SARIF report for GitHub code scanning |
 | `--fail-on <level>` | exit code 1 at this severity or above (default `high`) |
 | `--allow-host <host>` | trust a private registry host (repeatable) |
 | `--online` | registry checks: fresh releases, brand-new packages, deprecations, versions that don't exist |

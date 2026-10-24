@@ -21,12 +21,20 @@ inputs:
   comment:
     description: "Post the report as a sticky pull request comment"
     default: "true"
+  sarif:
+    description: "Also write a SARIF report (path exposed as the sarif-file output) for github/codeql-action/upload-sarif"
+    default: "false"
   working-directory:
     description: "Directory containing the lockfile"
     default: "."
   github-token:
     description: "Token used to post the PR comment"
     default: ${{ github.token }}
+
+outputs:
+  sarif-file:
+    description: "Path to the SARIF report, when sarif is true"
+    value: ${{ steps.review.outputs.sarif-file }}
 
 runs:
   using: "composite"
@@ -39,8 +47,12 @@ runs:
       run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
 
     - name: Review lockfile changes
+      id: review
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      sarif:
+    description: "Also write a SARIF report (path exposed as the sarif-file output) for github/codeql-action/upload-sarif"
+    default: "false"
+  working-directory: ${{ inputs.working-directory }}
       # Inputs go through env vars, never interpolated into the script, so a crafted value can't inject shell.
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -50,11 +62,16 @@ runs:
         LOCKRAY_MIN_AGE: ${{ inputs.min-age }}
         LOCKRAY_ALLOW_HOST: ${{ inputs.allow-host }}
         LOCKRAY_COMMENT: ${{ inputs.comment }}
+        LOCKRAY_SARIF: ${{ inputs.sarif }}
       run: |
         args=(--base "$LOCKRAY_BASE" --fail-on "$LOCKRAY_FAIL_ON" --min-age "$LOCKRAY_MIN_AGE" --format markdown --output "$RUNNER_TEMP/lockray.md")
         [ "$LOCKRAY_ONLINE" = "true" ] && args+=(--online)
         [ "$LOCKRAY_COMMENT" = "true" ] && args+=(--comment)
         [ -n "$LOCKRAY_ALLOW_HOST" ] && args+=(--allow-host "$LOCKRAY_ALLOW_HOST")
+        if [ "$LOCKRAY_SARIF" = "true" ]; then
+          args+=(--sarif "$RUNNER_TEMP/lockray.sarif")
+          echo "sarif-file=$RUNNER_TEMP/lockray.sarif" >> "$GITHUB_OUTPUT"
+        fi
 
         status=0
         node "$GITHUB_ACTION_PATH/dist/cli.mjs" "${args[@]}" || status=$?

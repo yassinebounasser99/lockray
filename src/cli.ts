@@ -24,6 +24,7 @@ Options
   -f, --file <path>       lockfile to check (repeatable; default: auto-detect)
       --format <fmt>      text | markdown | json | sarif (default: text)
   -o, --output <path>     write the report to a file instead of stdout
+      --sarif <path>      also write a SARIF report (for GitHub code scanning)
       --fail-on <level>   exit 1 on findings at or above: high | medium | low | info | none (default: high)
       --allow-host <host> extra trusted tarball host, e.g. your private registry (repeatable)
       --online            also check the npm registry: fresh releases, brand-new packages,
@@ -44,6 +45,7 @@ async function main(): Promise<number> {
       file: { type: "string", short: "f", multiple: true },
       format: { type: "string", default: "text" },
       output: { type: "string", short: "o" },
+      sarif: { type: "string" },
       "fail-on": { type: "string", default: "high" },
       "allow-host": { type: "string", multiple: true },
       online: { type: "boolean" },
@@ -118,6 +120,7 @@ async function main(): Promise<number> {
           ? formatSarif({ report, texts, version: VERSION })
           : formatText(report);
   if (values.output) writeFileSync(values.output, output + "\n");
+  if (values.sarif) writeFileSync(values.sarif, formatSarif({ report, texts, version: VERSION }) + "\n");
   else console.log(output);
 
   if (values.comment) {
