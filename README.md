@@ -138,7 +138,8 @@ Findings from families of platform-specific packages (e.g. 25 `@rollup/rollup-*`
 |---|---|
 | `package-lock.json` / `npm-shrinkwrap.json` (v1, v2, v3) | ✅ |
 | `yarn.lock` (Yarn Classic v1) | ✅ (no install-script data: Yarn doesn't record it) |
-| `pnpm-lock.yaml`, Yarn Berry | 🗺️ planned, PRs welcome |
+| `pnpm-lock.yaml` (v6 from pnpm 8, v9 from pnpm 9+) | ✅ (install scripts recorded in v6 only; v9 dropped `requiresBuild`) |
+| Yarn Berry (2+) | 🗺️ planned, PRs welcome |
 
 ## How it works
 

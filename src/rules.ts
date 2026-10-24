@@ -41,6 +41,8 @@ type SourceKind = "registry" | "foreign-registry" | "git" | "file" | "insecure" 
 function classifySource(resolved: string | undefined, allowed: Set<string>): { kind: SourceKind; host?: string } {
   if (!resolved) return { kind: "unknown" };
   if (/^(git\+|git:|github:|gitlab:|bitbucket:)/.test(resolved) || /\.git(#|$)/.test(resolved)) return { kind: "git" };
+  // pnpm records GitHub/GitLab dependencies as source-archive tarballs.
+  if (/^https:\/\/(codeload\.github\.com|gitlab\.com\/.+\/-\/archive|bitbucket\.org\/.+\/get)\//.test(resolved)) return { kind: "git" };
   if (/^(file:|link:|\.{0,2}\/)/.test(resolved)) return { kind: "file" };
   try {
     const url = new URL(resolved);
@@ -132,6 +134,10 @@ export function runRules(diff: LockDiff, opts: RuleOptions = {}): Finding[] {
       } else if (!/sha(256|384|512)-/.test(pkg.integrity)) {
         add({ severity: "low", rule: "weak-integrity", package: pkg.name, version: pkg.version, message: "Only a SHA-1 integrity hash" });
       }
+    }
+
+    if (pkg.deprecated) {
+      add({ severity: "low", rule: "deprecated", package: pkg.name, version: pkg.version, message: `Deprecated: ${pkg.deprecated}` });
     }
 
     if (pkg.hasInstallScript) {

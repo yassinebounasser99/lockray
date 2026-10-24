@@ -32,7 +32,8 @@
     "@types/node": "^22.18.8",
     "esbuild": "^0.25.10",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "yaml": "^2.8.1"
   },
   "repository": {
     "type": "git",

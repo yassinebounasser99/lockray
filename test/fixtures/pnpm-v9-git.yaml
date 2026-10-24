@@ -1,0 +1,41 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      is-odd:
+        specifier: github:i-voted-for-trump/is-odd#3.0.1
+        version: https://codeload.github.com/i-voted-for-trump/is-odd/tar.gz/a80ee0d831a8ee69f1fad5b4673491847975eb26
+      left-pad:
+        specifier: https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz
+        version: 1.3.0
+
+packages:
+
+  is-number@6.0.0:
+    resolution: {integrity: sha512-Wu1VHeILBK8KAWJUAiSZQX94GmOE45Rg6/538fKwiloUu21KncEkYGPqob2oSZ5mUT73vLGrHQjKw3KMPwfDzg==}
+    engines: {node: '>=0.10.0'}
+
+  is-odd@https://codeload.github.com/i-voted-for-trump/is-odd/tar.gz/a80ee0d831a8ee69f1fad5b4673491847975eb26:
+    resolution: {tarball: https://codeload.github.com/i-voted-for-trump/is-odd/tar.gz/a80ee0d831a8ee69f1fad5b4673491847975eb26}
+    version: 3.0.1
+    engines: {node: '>=4'}
+
+  left-pad@1.3.0:
+    resolution: {integrity: sha512-XI5MPzVNApjAyhQzphX8BkmKsKUxD4LdyK24iZeQGinBN9yTQT3bFlCBy/aVx2HrNcqQGsdot8ghrjyrvMCoEA==}
+    deprecated: use String.prototype.padStart()
+
+snapshots:
+
+  is-number@6.0.0: {}
+
+  is-odd@https://codeload.github.com/i-voted-for-trump/is-odd/tar.gz/a80ee0d831a8ee69f1fad5b4673491847975eb26:
+    dependencies:
+      is-number: 6.0.0
+
+  left-pad@1.3.0: {}

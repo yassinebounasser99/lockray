@@ -70,7 +70,7 @@ export async function onlineFindings(pkgs: LockedPackage[], opts: OnlineOptions)
       out.push({ ...base, severity: "high", rule: "not-on-registry", message: `Version ${pkg.version} doesn't exist on the npm registry (unpublished or fabricated)` });
       return out;
     }
-    if (manifest.deprecated) {
+    if (manifest.deprecated && !pkg.deprecated) {
       out.push({ ...base, severity: "low", rule: "deprecated", message: `Deprecated: ${manifest.deprecated}` });
     }
 

@@ -31,7 +31,7 @@ Options
   -h, --help              show this help
   -v, --version           show the version
 
-Supports package-lock.json, npm-shrinkwrap.json and yarn.lock (Yarn Classic).`;
+Supports package-lock.json, npm-shrinkwrap.json, pnpm-lock.yaml (v6, v9) and yarn.lock (Yarn Classic).`;
 
 async function main(): Promise<number> {
   const { values, positionals } = parseArgs({
@@ -79,7 +79,7 @@ async function main(): Promise<number> {
     if (!refExists(base)) throw new Error(`git ref "${base}" not found. In CI, fetch it first (e.g. actions/checkout with fetch-depth: 0).`);
     if (head && !refExists(head)) throw new Error(`git ref "${head}" not found`);
     const files = values.file?.length ? values.file : detectLockfiles(base, head);
-    if (!files.length) throw new Error("No package-lock.json, npm-shrinkwrap.json or yarn.lock found in this directory.");
+    if (!files.length) throw new Error("No package-lock.json, npm-shrinkwrap.json, pnpm-lock.yaml or yarn.lock found in this directory.");
 
     const results: FileReport[] = [];
     for (const file of files) {

@@ -1,4 +1,4 @@
-export type LockfileKind = "npm" | "yarn";
+export type LockfileKind = "npm" | "yarn" | "pnpm";
 
 export interface LockedPackage {
   name: string;
@@ -12,6 +12,8 @@ export interface LockedPackage {
   license?: string;
   dev?: boolean;
   optional?: boolean;
+  /** Deprecation notice, when the lockfile records it (pnpm) */
+  deprecated?: string;
 }
 
 export interface Lockfile {
