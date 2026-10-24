@@ -33,5 +33,13 @@
     "esbuild": "^0.25.10",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yassinebounasser99/lockray.git"
+  },
+  "homepage": "https://github.com/yassinebounasser99/lockray#readme",
+  "bugs": {
+    "url": "https://github.com/yassinebounasser99/lockray/issues"
   }
 }
