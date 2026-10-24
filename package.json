@@ -16,7 +16,8 @@
   "scripts": {
     "build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.mjs --banner:js='#!/usr/bin/env node\nimport { createRequire as __lockrayCreateRequire } from \"node:module\"; const require = __lockrayCreateRequire(import.meta.url);'",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:playground": "esbuild src/browser.ts --bundle --format=iife --minify --platform=browser --outfile=playground/public/lockray.js && mkdir -p playground/public/examples && cp examples/*.json test/fixtures/pnpm-v9.yaml test/fixtures/pnpm-v9-git.yaml playground/public/examples/"
   },
   "keywords": [
     "lockfile",

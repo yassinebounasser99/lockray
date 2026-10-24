@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lockray playground: X-ray a lockfile diff</title>
+    <meta name="description" content="Paste two versions of a package-lock.json, pnpm-lock.yaml or yarn.lock and see what changed and what looks dangerous: lockfile injection, tampered packages, install scripts, typosquats. Runs entirely in your browser." />
+    <meta property="og:title" content="lockray: X-ray your lockfile diffs" />
+    <meta property="og:description" content="Catch lockfile injection, tampered packages, install scripts and typosquats before they merge." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>" />
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --panel-2: #1c2230;
+        --line: #30363d;
+        --text: #e6edf3;
+        --muted: #8b949e;
+        --accent: #a371f7;
+        --high: #ff7b72;
+        --high-bg: #3d1d1f;
+        --medium: #e3b341;
+        --medium-bg: #3a2f12;
+        --low: #79c0ff;
+        --low-bg: #132a42;
+        --info: #8b949e;
+        --info-bg: #21262d;
+        --ok: #3fb950;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f6f8fa;
+          --panel: #ffffff;
+          --panel-2: #f6f8fa;
+          --line: #d0d7de;
+          --text: #1f2328;
+          --muted: #59636e;
+          --accent: #8250df;
+          --high: #cf222e;
+          --high-bg: #ffebe9;
+          --medium: #9a6700;
+          --medium-bg: #fff8c5;
+          --low: #0969da;
+          --low-bg: #ddf4ff;
+          --info: #59636e;
+          --info-bg: #eaeef2;
+          --ok: #1a7f37;
+        }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+      a { color: var(--accent); }
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+      header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+      .brand { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+      .brand small { font-weight: 400; color: var(--muted); font-size: 14px; margin-left: 8px; }
+      .gh { display: inline-flex; gap: 8px; align-items: center; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); text-decoration: none; background: var(--panel); font-size: 14px; }
+      .gh:hover { border-color: var(--accent); }
+      .lede { color: var(--muted); max-width: 760px; margin: 4px 0 20px; }
+      .examples { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; font-size: 14px; color: var(--muted); }
+      button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 6px 12px; }
+      button:hover { border-color: var(--accent); }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; padding: 8px 18px; }
+      button:disabled { opacity: 0.6; cursor: progress; }
+      .inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      @media (max-width: 760px) { .inputs { grid-template-columns: 1fr; } }
+      .pane { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+      .pane-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+      .pane-head b { color: var(--text); }
+      .pane-head label { cursor: pointer; color: var(--accent); }
+      textarea { width: 100%; min-height: 220px; resize: vertical; border: 0; outline: 0; padding: 12px; background: transparent; color: var(--text); font: 12px/1.5 var(--mono); }
+      .pane.drag { border-color: var(--accent); }
+      .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 14px 0 24px; }
+      .actions label { font-size: 14px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+      .privacy { font-size: 13px; color: var(--muted); }
+      .verdict { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+      .verdict.high { color: var(--high); } .verdict.medium { color: var(--medium); } .verdict.ok { color: var(--ok); }
+      .stats { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+      .finding { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); margin-bottom: 8px; }
+      .sev { font: 700 11px/1 var(--mono); padding: 5px 7px; border-radius: 6px; text-transform: uppercase; align-self: start; }
+      .sev.high { color: var(--high); background: var(--high-bg); } .sev.medium { color: var(--medium); background: var(--medium-bg); }
+      .sev.low { color: var(--low); background: var(--low-bg); } .sev.info { color: var(--info); background: var(--info-bg); }
+      .pkg { font: 600 13px var(--mono); word-break: break-all; }
+      .rule { font: 12px var(--mono); color: var(--muted); margin-left: 6px; }
+      .msg { grid-column: 2; font-size: 14px; word-break: break-word; }
+      .why { grid-column: 2; font-size: 13px; color: var(--muted); }
+      details { margin-top: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+      details summary { cursor: pointer; font-weight: 600; }
+      details ul { margin: 10px 0 0; padding-left: 18px; font: 12px/1.7 var(--mono); max-height: 260px; overflow: auto; }
+      .error { color: var(--high); font-weight: 600; }
+      .cta { margin-top: 32px; padding: 16px; border: 1px dashed var(--line); border-radius: 10px; font-size: 14px; }
+      .cta pre { margin: 8px 0 0; padding: 10px; background: var(--panel-2); border-radius: 8px; overflow-x: auto; font: 12px/1.5 var(--mono); }
+      footer { margin-top: 32px; font-size: 13px; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div class="brand">🔬 lockray <small>playground</small></div>
+        <a class="gh" href="https://github.com/yassinebounasser99/lockray" target="_blank" rel="noopener">★ Star on GitHub</a>
+      </header>
+      <p class="lede">
+        Paste the <b>before</b> and <b>after</b> versions of a <code>package-lock.json</code>, <code>pnpm-lock.yaml</code> or <code>yarn.lock</code>. lockray shows
+        what actually changed and flags lockfile injection, tampered packages, install scripts and typosquats.
+      </p>
+
+      <div class="examples">
+        Try an example:
+        <button data-example="npm">npm: injected download URL + typosquat</button>
+        <button data-example="pnpm">pnpm: git dependency + deprecation</button>
+      </div>
+
+      <div class="inputs">
+        <div class="pane" data-side="before">
+          <div class="pane-head"><b>Before</b> <label>open file<input type="file" hidden /></label></div>
+          <textarea id="before" spellcheck="false" placeholder="Paste the base lockfile, or drop a file here"></textarea>
+        </div>
+        <div class="pane" data-side="after">
+          <div class="pane-head"><b>After</b> <label>open file<input type="file" hidden /></label></div>
+          <textarea id="after" spellcheck="false" placeholder="Paste the changed lockfile, or drop a file here"></textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="run">X-ray the diff</button>
+        <label><input type="checkbox" id="online" /> Also check the npm registry (fresh releases, new packages)</label>
+        <span class="privacy">Runs in your browser. Lockfiles are never uploaded; only package names go to the npm registry if you tick the box.</span>
+      </div>
+
+      <section id="out" aria-live="polite"></section>
+
+      <div class="cta">
+        <b>Run it on every pull request.</b> Add the GitHub Action and lockray posts this review as a PR comment:
+        <pre>- uses: actions/checkout@v4
+- uses: yassinebounasser99/lockray@v0</pre>
+        Or from a terminal: <code>npx github:yassinebounasser99/lockray</code>
+      </div>
+
+      <footer>MIT licensed · <a href="https://github.com/yassinebounasser99/lockray#what-it-checks">What each rule means</a></footer>
+    </div>
+
+    <script src="./lockray.js"></script>
+    <script>
+      const $ = (s) => document.querySelector(s);
+      const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+      const EXAMPLES = {
+        npm: ["examples/before.package-lock.json", "examples/after.package-lock.json"],
+        pnpm: ["examples/pnpm-v9.yaml", "examples/pnpm-v9-git.yaml"],
+      };
+
+      document.querySelectorAll("[data-example]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const [before, after] = await Promise.all(EXAMPLES[b.dataset.example].map((u) => fetch(u).then((r) => r.text())));
+          $("#before").value = before;
+          $("#after").value = after;
+          run();
+        }),
+      );
+
+      document.querySelectorAll(".pane").forEach((pane) => {
+        const area = pane.querySelector("textarea");
+        const load = (file) => file && file.text().then((t) => (area.value = t));
+        pane.querySelector("input[type=file]").addEventListener("change", (e) => load(e.target.files[0]));
+        pane.addEventListener("dragover", (e) => { e.preventDefault(); pane.classList.add("drag"); });
+        pane.addEventListener("dragleave", () => pane.classList.remove("drag"));
+        pane.addEventListener("drop", (e) => { e.preventDefault(); pane.classList.remove("drag"); load(e.dataTransfer.files[0]); });
+      });
+
+      $("#run").addEventListener("click", run);
+
+      async function run() {
+        const out = $("#out");
+        const btn = $("#run");
+        const before = $("#before").value.trim();
+        const after = $("#after").value.trim();
+        if (!before && !after) { out.innerHTML = '<p class="error">Paste at least one lockfile.</p>'; return; }
+        btn.disabled = true;
+        btn.textContent = $("#online").checked ? "Checking registry…" : "Analyzing…";
+        try {
+          const res = await window.lockray.analyze(before, after, { online: $("#online").checked });
+          render(res);
+        } catch (err) {
+          out.innerHTML = `<p class="error">Couldn't read that lockfile: ${esc(err.message)}</p>`;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "X-ray the diff";
+        }
+      }
+
+      function render({ file, report, collapsed, markdown }) {
+        const out = $("#out");
+        if (!report) { out.innerHTML = '<p class="verdict ok">No changes: the two lockfiles are identical.</p>'; return; }
+        const d = report.diff;
+        const counts = { high: 0, medium: 0, low: 0, info: 0 };
+        collapsed.forEach((f) => counts[f.severity]++);
+        const verdict = counts.high
+          ? `<p class="verdict high">${counts.high} high-severity issue${counts.high > 1 ? "s" : ""}. Don't merge this blind.</p>`
+          : counts.medium
+            ? `<p class="verdict medium">${counts.medium} thing${counts.medium > 1 ? "s" : ""} worth a look.</p>`
+            : '<p class="verdict ok">✓ No supply-chain issues found.</p>';
+        const order = ["high", "medium", "low", "info"];
+        const findings = [...collapsed]
+          .sort((a, b) => order.indexOf(a.severity) - order.indexOf(b.severity))
+          .map((f) => {
+            const why = window.lockray.RULES[f.rule]?.why;
+            return `<div class="finding"><span class="sev ${f.severity}">${f.severity}</span>
+              <div><span class="pkg">${esc(f.package)}${f.version ? "@" + esc(f.version) : ""}</span><span class="rule">${esc(f.rule)}</span></div>
+              <div class="msg">${esc(f.message)}</div>${why ? `<div class="why">${esc(why)}</div>` : ""}</div>`;
+          })
+          .join("");
+        const list = (title, items) =>
+          items.length ? `<details><summary>${title} (${items.length})</summary><ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul></details>` : "";
+        out.innerHTML =
+          verdict +
+          `<p class="stats">Read as <code>${esc(file)}</code> · +${d.added.length} added · ${d.upgraded.length} changed · −${d.removed.length} removed${d.modified.length ? ` · <b style="color:var(--high)">⚠ ${d.modified.length} modified in place</b>` : ""}</p>` +
+          findings +
+          list("Added", d.added.map((p) => `${p.name}@${p.version}`)) +
+          list("Changed", d.upgraded.map((u) => `${u.name}  ${u.from.join(", ")} → ${u.to.join(", ")}`)) +
+          list("Removed", d.removed.map((p) => `${p.name}@${p.version}`)) +
+          `<details><summary>PR comment markdown</summary><p><button id="copy">Copy markdown</button></p><ul style="list-style:none;padding:0"><li><pre style="white-space:pre-wrap">${esc(markdown)}</pre></li></ul></details>`;
+        $("#copy")?.addEventListener("click", async (e) => {
+          await navigator.clipboard.writeText(markdown);
+          e.target.textContent = "Copied";
+        });
+      }
+    </script>
+  </body>
+</html>
