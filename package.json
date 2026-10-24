@@ -14,7 +14,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.mjs --banner:js='#!/usr/bin/env node'",
+    "build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.mjs --banner:js='#!/usr/bin/env node\nimport { createRequire as __lockrayCreateRequire } from \"node:module\"; const require = __lockrayCreateRequire(import.meta.url);'",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

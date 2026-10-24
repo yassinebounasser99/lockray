@@ -26,8 +26,16 @@ jobs:
       - run: npm run build
       - name: Committed dist is up to date
         run: git diff --exit-code dist/
-      - name: Smoke test the CLI
-        run: node dist/cli.mjs --version && node dist/cli.mjs --help
+      - name: Smoke test the bundled CLI on every lockfile format
+        run: |
+          node dist/cli.mjs --version
+          node dist/cli.mjs --help > /dev/null
+          # Each example contains planted issues, so lockray must exit 1 (findings), not 0 or 2 (crash).
+          set +e
+          node dist/cli.mjs examples/before.package-lock.json examples/after.package-lock.json; test $? -eq 1 || exit 1
+          node dist/cli.mjs test/fixtures/pnpm-v9.yaml test/fixtures/pnpm-v9-git.yaml --fail-on low; test $? -eq 1 || exit 1
+          node dist/cli.mjs examples/before.package-lock.json examples/after.package-lock.json --format sarif > out.sarif; test $? -eq 1 || exit 1
+          node -e 'JSON.parse(require("fs").readFileSync("out.sarif"))' 
 
   # lockray reviews its own pull requests.
   dogfood:

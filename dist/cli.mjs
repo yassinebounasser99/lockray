@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createRequire as __lockrayCreateRequire } from "node:module"; const require = __lockrayCreateRequire(import.meta.url);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -8217,6 +8218,137 @@ async function onlineFindings(pkgs, opts) {
   return { findings: perPackage.flat(), checked: toCheck.length, skipped: pkgs.length - toCheck.length };
 }
 
+// src/ruledocs.ts
+var RULES = {
+  "integrity-changed": {
+    title: "Integrity hash changed for an unchanged version",
+    severity: "high",
+    why: "Published npm versions are immutable. A different hash for the same name@version means the tarball being installed is not the one the registry published."
+  },
+  "source-changed": {
+    title: "Download URL changed for an unchanged version",
+    severity: "high",
+    why: "Lockfile injection: editing a package's resolved URL makes installs fetch attacker-controlled code while the diff looks like routine noise."
+  },
+  "untrusted-host": {
+    title: "Tarball from a host other than the npm registry",
+    severity: "high",
+    why: "Packages normally come from registry.npmjs.org. Another host can serve anything; trust it explicitly with --allow-host if it's your private registry."
+  },
+  "tarball-mismatch": {
+    title: "Registry URL points at a different package or version",
+    severity: "high",
+    why: "The URL is on the real registry but downloads another package, which is a way to smuggle code past host allowlists."
+  },
+  "insecure-source": {
+    title: "Package downloaded over plain HTTP",
+    severity: "high",
+    why: "Unencrypted downloads can be modified in transit."
+  },
+  "not-on-registry": {
+    title: "Version doesn't exist on the npm registry",
+    severity: "high",
+    why: "The lockfile references something npm never published, or that was pulled, often because it was malicious."
+  },
+  "install-script": {
+    title: "New package runs an install script",
+    severity: "medium",
+    why: "preinstall/install/postinstall scripts run arbitrary code on every developer machine and CI runner that installs the project."
+  },
+  typosquat: {
+    title: "Name resembles a popular package",
+    severity: "medium",
+    why: "Typosquatting packages imitate popular names (one typo, a swapped letter, a different separator) to get installed by mistake."
+  },
+  "git-source": {
+    title: "Installed from a git repository",
+    severity: "medium",
+    why: "Git dependencies bypass the registry's immutability and malware scanning, and the referenced code can change if a branch is used."
+  },
+  "missing-integrity": {
+    title: "No integrity hash",
+    severity: "medium",
+    why: "Without a hash, the package manager can't verify that the downloaded tarball is the expected one."
+  },
+  "fresh-release": {
+    title: "Version published very recently",
+    severity: "medium",
+    why: "Hijacked releases are usually detected and pulled within days. Waiting a short cooldown before adopting new versions avoids most of them."
+  },
+  "new-package": {
+    title: "Package is brand new",
+    severity: "medium",
+    why: "Most malicious packages are only days or weeks old when they're found."
+  },
+  "weak-integrity": { title: "Only a SHA-1 integrity hash", severity: "low", why: "SHA-1 is no longer collision-resistant." },
+  "local-source": { title: "Installed from a local path", severity: "low", why: "Worth confirming the path is part of this repository." },
+  downgrade: { title: "Package downgraded", severity: "low", why: "Downgrades can reintroduce fixed vulnerabilities." },
+  "license-changed": { title: "License changed", severity: "low", why: "A new license may not be compatible with how you use the package." },
+  deprecated: { title: "Deprecated package", severity: "low", why: "Deprecated packages no longer receive fixes." },
+  "major-bump": { title: "Major version bump", severity: "info", why: "Major versions may contain breaking changes." }
+};
+
+// src/sarif.ts
+var LEVEL = { high: "error", medium: "warning", low: "note", info: "note" };
+var SECURITY_SEVERITY = { high: "8.0", medium: "5.0", low: "3.0", info: "1.0" };
+var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function lineOf(kind, text, name, version) {
+  const n = escapeRe(name);
+  const v = version ? escapeRe(version.split(/[, ·]/)[0]) : "";
+  const patterns = kind === "npm" ? [new RegExp(`^\\s*"(?:[^"]*/)?node_modules/${n}"\\s*:`)] : kind === "pnpm" ? [new RegExp(`^\\s*'?/?${n}@${v}`), new RegExp(`^\\s*'?/?${n}@`)] : [new RegExp(`^"?${n}@`), new RegExp(`[ ,"]${n}@`)];
+  const lines = text.split("\n");
+  for (const re of patterns) {
+    const idx = lines.findIndex((l) => re.test(l));
+    if (idx !== -1) return idx + 1;
+  }
+  return 1;
+}
+function formatSarif({ report, texts, version }) {
+  const used = /* @__PURE__ */ new Set();
+  const results = report.files.flatMap(
+    (file) => file.findings.map((f) => {
+      used.add(f.rule);
+      const src = texts[file.file];
+      return {
+        ruleId: f.rule,
+        level: LEVEL[f.severity],
+        message: { text: `${f.package}${f.version ? `@${f.version}` : ""}: ${f.message}` },
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: { uri: file.file },
+              region: { startLine: src ? lineOf(src.kind, src.text, f.package, f.version) : 1 }
+            }
+          }
+        ],
+        // Keeps the alert stable across runs so GitHub doesn't open duplicates.
+        partialFingerprints: { lockrayFinding: `${f.rule}:${f.package}@${f.version ?? ""}` }
+      };
+    })
+  );
+  const rules = [...used].sort().map((id) => {
+    const doc = RULES[id];
+    return {
+      id,
+      name: id.replace(/(^|-)(\w)/g, (_, __, c2) => c2.toUpperCase()),
+      shortDescription: { text: doc?.title ?? id },
+      fullDescription: { text: doc?.why ?? id },
+      helpUri: "https://github.com/yassinebounasser99/lockray#what-it-checks",
+      defaultConfiguration: { level: LEVEL[doc?.severity ?? "low"] },
+      properties: { tags: ["security", "supply-chain"], "security-severity": SECURITY_SEVERITY[doc?.severity ?? "low"] }
+    };
+  });
+  return JSON.stringify(
+    {
+      $schema: "https://json.schemastore.org/sarif-2.1.0.json",
+      version: "2.1.0",
+      runs: [{ tool: { driver: { name: "lockray", version, informationUri: "https://github.com/yassinebounasser99/lockray", rules } }, results }]
+    },
+    null,
+    2
+  );
+}
+
 // src/cli.ts
 var VERSION = "0.1.0";
 var HELP = `lockray ${VERSION}: X-ray your lockfile diffs
@@ -8229,7 +8361,7 @@ Options
   -b, --base <ref>        git ref to compare against (default: HEAD, or origin/$GITHUB_BASE_REF in CI)
       --head <ref>        git ref to compare (default: the working tree)
   -f, --file <path>       lockfile to check (repeatable; default: auto-detect)
-      --format <fmt>      text | markdown | json (default: text)
+      --format <fmt>      text | markdown | json | sarif (default: text)
   -o, --output <path>     write the report to a file instead of stdout
       --fail-on <level>   exit 1 on findings at or above: high | medium | low | info | none (default: high)
       --allow-host <host> extra trusted tarball host, e.g. your private registry (repeatable)
@@ -8270,13 +8402,16 @@ async function main() {
   const failOn = values["fail-on"];
   if (!["high", "medium", "low", "info", "none"].includes(failOn)) throw new Error(`--fail-on must be high, medium, low, info or none`);
   const format = values.format;
-  if (!["text", "markdown", "json"].includes(format)) throw new Error(`--format must be text, markdown or json`);
+  if (!["text", "markdown", "json", "sarif"].includes(format)) throw new Error(`--format must be text, markdown, json or sarif`);
+  const texts = {};
   const allowedHosts = (values["allow-host"] ?? []).flatMap((h) => h.split(",")).map((h) => h.trim()).filter(Boolean);
   let report;
   if (positionals.length === 2) {
     const [oldPath, newPath] = positionals;
     const file = basename(newPath);
-    const result = analyzeLockfile(file, readFileSync3(oldPath, "utf8"), readFileSync3(newPath, "utf8"), { allowedHosts });
+    const headText = readFileSync3(newPath, "utf8");
+    texts[file] = { kind: lockfileKind(newPath), text: headText };
+    const result = analyzeLockfile(file, readFileSync3(oldPath, "utf8"), headText, { allowedHosts });
     report = { base: oldPath, head: newPath, files: result ? [result] : [] };
   } else if (positionals.length === 0) {
     const base = values.base ?? defaultBase();
@@ -8287,7 +8422,9 @@ async function main() {
     if (!files.length) throw new Error("No package-lock.json, npm-shrinkwrap.json, pnpm-lock.yaml or yarn.lock found in this directory.");
     const results = [];
     for (const file of files) {
-      const r = analyzeLockfile(file, readAtRef(base, file), head ? readAtRef(head, file) : readWorkingTree(file), { allowedHosts });
+      const headText = head ? readAtRef(head, file) : readWorkingTree(file);
+      if (headText !== null) texts[file] = { kind: lockfileKind(file), text: headText };
+      const r = analyzeLockfile(file, readAtRef(base, file), headText, { allowedHosts });
       if (r) results.push(r);
     }
     const short = (ref) => /^[0-9a-f]{40}$/.test(ref) ? ref.slice(0, 7) : ref;
@@ -8304,7 +8441,7 @@ async function main() {
       if (skipped) console.error(`lockray: ${f.file}: skipped registry checks for ${skipped} package(s) (private registry or over the limit)`);
     }
   }
-  const output = format === "json" ? formatJson(report) : format === "markdown" ? formatMarkdown(report) : formatText(report);
+  const output = format === "json" ? formatJson(report) : format === "markdown" ? formatMarkdown(report) : format === "sarif" ? formatSarif({ report, texts, version: VERSION }) : formatText(report);
   if (values.output) writeFileSync(values.output, output + "\n");
   else console.log(output);
   if (values.comment) {

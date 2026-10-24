@@ -6,7 +6,9 @@ import { defaultBase, detectLockfiles, readAtRef, readWorkingTree, refExists } f
 import { upsertPullRequestComment } from "./github.js";
 import { onlineFindings } from "./registry.js";
 import { exceeds, formatJson, formatMarkdown, formatText, type FileReport, type Report } from "./report.js";
-import type { Severity } from "./types.js";
+import { lockfileKind } from "./parse/index.js";
+import { formatSarif } from "./sarif.js";
+import type { LockfileKind, Severity } from "./types.js";
 
 const VERSION = "0.1.0";
 
@@ -20,7 +22,7 @@ Options
   -b, --base <ref>        git ref to compare against (default: HEAD, or origin/$GITHUB_BASE_REF in CI)
       --head <ref>        git ref to compare (default: the working tree)
   -f, --file <path>       lockfile to check (repeatable; default: auto-detect)
-      --format <fmt>      text | markdown | json (default: text)
+      --format <fmt>      text | markdown | json | sarif (default: text)
   -o, --output <path>     write the report to a file instead of stdout
       --fail-on <level>   exit 1 on findings at or above: high | medium | low | info | none (default: high)
       --allow-host <host> extra trusted tarball host, e.g. your private registry (repeatable)
@@ -64,14 +66,17 @@ async function main(): Promise<number> {
   const failOn = values["fail-on"] as Severity | "none";
   if (!["high", "medium", "low", "info", "none"].includes(failOn)) throw new Error(`--fail-on must be high, medium, low, info or none`);
   const format = values.format!;
-  if (!["text", "markdown", "json"].includes(format)) throw new Error(`--format must be text, markdown or json`);
+  if (!["text", "markdown", "json", "sarif"].includes(format)) throw new Error(`--format must be text, markdown, json or sarif`);
+  const texts: Record<string, { kind: LockfileKind; text: string } | undefined> = {};
   const allowedHosts = (values["allow-host"] ?? []).flatMap((h) => h.split(",")).map((h) => h.trim()).filter(Boolean);
 
   let report: Report;
   if (positionals.length === 2) {
     const [oldPath, newPath] = positionals as [string, string];
     const file = basename(newPath);
-    const result = analyzeLockfile(file, readFileSync(oldPath, "utf8"), readFileSync(newPath, "utf8"), { allowedHosts });
+    const headText = readFileSync(newPath, "utf8");
+    texts[file] = { kind: lockfileKind(newPath), text: headText };
+    const result = analyzeLockfile(file, readFileSync(oldPath, "utf8"), headText, { allowedHosts });
     report = { base: oldPath, head: newPath, files: result ? [result] : [] };
   } else if (positionals.length === 0) {
     const base = values.base ?? defaultBase();
@@ -83,7 +88,9 @@ async function main(): Promise<number> {
 
     const results: FileReport[] = [];
     for (const file of files) {
-      const r = analyzeLockfile(file, readAtRef(base, file), head ? readAtRef(head, file) : readWorkingTree(file), { allowedHosts });
+      const headText = head ? readAtRef(head, file) : readWorkingTree(file);
+      if (headText !== null) texts[file] = { kind: lockfileKind(file), text: headText };
+      const r = analyzeLockfile(file, readAtRef(base, file), headText, { allowedHosts });
       if (r) results.push(r);
     }
     const short = (ref: string) => (/^[0-9a-f]{40}$/.test(ref) ? ref.slice(0, 7) : ref);
@@ -102,7 +109,14 @@ async function main(): Promise<number> {
     }
   }
 
-  const output = format === "json" ? formatJson(report) : format === "markdown" ? formatMarkdown(report) : formatText(report);
+  const output =
+    format === "json"
+      ? formatJson(report)
+      : format === "markdown"
+        ? formatMarkdown(report)
+        : format === "sarif"
+          ? formatSarif({ report, texts, version: VERSION })
+          : formatText(report);
   if (values.output) writeFileSync(values.output, output + "\n");
   else console.log(output);
 
