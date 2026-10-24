@@ -12,9 +12,9 @@ export interface Report {
   files: FileReport[];
 }
 
-export function countBySeverity(report: Report): Record<Severity, number> {
+export function countBySeverity(report: Report, collapsed = false): Record<Severity, number> {
   const counts: Record<Severity, number> = { high: 0, medium: 0, low: 0, info: 0 };
-  for (const f of report.files) for (const x of f.findings) counts[x.severity]++;
+  for (const f of report.files) for (const x of collapsed ? collapseFindings(f.findings) : f.findings) counts[x.severity]++;
   return counts;
 }
 
@@ -22,6 +22,30 @@ export function exceeds(report: Report, failOn: Severity | "none"): boolean {
   if (failOn === "none") return false;
   const limit = SEVERITY_ORDER.indexOf(failOn);
   return report.files.some((f) => f.findings.some((x) => SEVERITY_ORDER.indexOf(x.severity) <= limit));
+}
+
+/**
+ * Platform-binary families (@rollup/rollup-linux-x64-gnu, @esbuild/darwin-arm64, ...) produce the
+ * same finding dozens of times. For human-facing output, fold findings that share a rule, version
+ * and scope into one line.
+ */
+export function collapseFindings(xs: Finding[], min = 3): Finding[] {
+  const groups = new Map<string, Finding[]>();
+  for (const f of xs) {
+    const scope = f.package.startsWith("@") ? f.package.split("/")[0] : null;
+    const key = scope ? `${f.rule}|${f.version}|${scope}` : `single|${groups.size}|${f.package}|${f.rule}`;
+    groups.set(key, [...(groups.get(key) ?? []), f]);
+  }
+  const out: Finding[] = [];
+  for (const [key, group] of groups) {
+    if (group.length < min) {
+      out.push(...group);
+      continue;
+    }
+    const scope = key.split("|")[2];
+    out.push({ ...group[0]!, package: `${scope}/*`, version: `${group[0]!.version} · ${group.length} packages` });
+  }
+  return out;
 }
 
 const sortFindings = (xs: Finding[]) =>
@@ -57,12 +81,12 @@ export function formatText(report: Report): string {
       out.push(c.green("  ✓ No issues found"));
       continue;
     }
-    for (const x of sortFindings(f.findings)) {
+    for (const x of sortFindings(collapseFindings(f.findings))) {
       out.push(`  ${SEV_TEXT[x.severity](x.severity.toUpperCase().padEnd(6))} ${c.bold(x.package)}${x.version ? c.gray(`@${x.version}`) : ""} ${c.gray(`[${x.rule}]`)}`);
       out.push(`         ${x.message}`);
     }
   }
-  const counts = countBySeverity(report);
+  const counts = countBySeverity(report, true);
   out.push("", SEVERITY_ORDER.filter((s) => counts[s]).map((s) => SEV_TEXT[s](`${counts[s]} ${s}`)).join(c.gray(" · ")) || c.green("All clear"));
   return out.join("\n");
 }
@@ -83,7 +107,7 @@ function list(title: string, items: string[], limit = 50): string {
 }
 
 export function formatMarkdown(report: Report): string {
-  const counts = countBySeverity(report);
+  const counts = countBySeverity(report, true);
   const parts: string[] = [COMMENT_MARKER, "### 🔬 lockray: lockfile review"];
 
   if (!report.files.length) {
@@ -106,7 +130,7 @@ export function formatMarkdown(report: Report): string {
 
     if (f.findings.length) {
       section += `\n| | Package | Issue |\n|---|---|---|\n`;
-      section += sortFindings(f.findings)
+      section += sortFindings(collapseFindings(f.findings))
         .map((x) => `| ${SEV_ICON[x.severity]} | \`${esc(x.package)}${x.version ? `@${esc(x.version)}` : ""}\` | ${esc(x.message)} <sub>\`${x.rule}\`</sub> |`)
         .join("\n");
       section += "\n";

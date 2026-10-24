@@ -676,15 +676,33 @@ async function onlineFindings(pkgs, opts) {
 var SEVERITY_ORDER = ["high", "medium", "low", "info"];
 
 // src/report.ts
-function countBySeverity(report) {
+function countBySeverity(report, collapsed = false) {
   const counts = { high: 0, medium: 0, low: 0, info: 0 };
-  for (const f of report.files) for (const x of f.findings) counts[x.severity]++;
+  for (const f of report.files) for (const x of collapsed ? collapseFindings(f.findings) : f.findings) counts[x.severity]++;
   return counts;
 }
 function exceeds(report, failOn) {
   if (failOn === "none") return false;
   const limit = SEVERITY_ORDER.indexOf(failOn);
   return report.files.some((f) => f.findings.some((x) => SEVERITY_ORDER.indexOf(x.severity) <= limit));
+}
+function collapseFindings(xs, min = 3) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const f of xs) {
+    const scope = f.package.startsWith("@") ? f.package.split("/")[0] : null;
+    const key = scope ? `${f.rule}|${f.version}|${scope}` : `single|${groups.size}|${f.package}|${f.rule}`;
+    groups.set(key, [...groups.get(key) ?? [], f]);
+  }
+  const out = [];
+  for (const [key, group] of groups) {
+    if (group.length < min) {
+      out.push(...group);
+      continue;
+    }
+    const scope = key.split("|")[2];
+    out.push({ ...group[0], package: `${scope}/*`, version: `${group[0].version} \xB7 ${group.length} packages` });
+  }
+  return out;
 }
 var sortFindings = (xs) => [...xs].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity) || a.package.localeCompare(b.package));
 var useColor = () => process.stdout.isTTY && !process.env.NO_COLOR;
@@ -713,12 +731,12 @@ function formatText(report) {
       out.push(c.green("  \u2713 No issues found"));
       continue;
     }
-    for (const x of sortFindings(f.findings)) {
+    for (const x of sortFindings(collapseFindings(f.findings))) {
       out.push(`  ${SEV_TEXT[x.severity](x.severity.toUpperCase().padEnd(6))} ${c.bold(x.package)}${x.version ? c.gray(`@${x.version}`) : ""} ${c.gray(`[${x.rule}]`)}`);
       out.push(`         ${x.message}`);
     }
   }
-  const counts = countBySeverity(report);
+  const counts = countBySeverity(report, true);
   out.push("", SEVERITY_ORDER.filter((s) => counts[s]).map((s) => SEV_TEXT[s](`${counts[s]} ${s}`)).join(c.gray(" \xB7 ")) || c.green("All clear"));
   return out.join("\n");
 }
@@ -737,7 +755,7 @@ ${shown.join("\n")}
 `;
 }
 function formatMarkdown(report) {
-  const counts = countBySeverity(report);
+  const counts = countBySeverity(report, true);
   const parts = [COMMENT_MARKER, "### \u{1F52C} lockray: lockfile review"];
   if (!report.files.length) {
     parts.push("No lockfile changes in this PR.");
@@ -757,7 +775,7 @@ ${summary.join(" \xB7 ")}
 | | Package | Issue |
 |---|---|---|
 `;
-      section += sortFindings(f.findings).map((x) => `| ${SEV_ICON[x.severity]} | \`${esc(x.package)}${x.version ? `@${esc(x.version)}` : ""}\` | ${esc(x.message)} <sub>\`${x.rule}\`</sub> |`).join("\n");
+      section += sortFindings(collapseFindings(f.findings)).map((x) => `| ${SEV_ICON[x.severity]} | \`${esc(x.package)}${x.version ? `@${esc(x.version)}` : ""}\` | ${esc(x.message)} <sub>\`${x.rule}\`</sub> |`).join("\n");
       section += "\n";
     }
     section += "\n" + list("Added", diff.added.map((p) => `\`${p.name}@${p.version}\``));
