@@ -154,10 +154,19 @@ export function runRules(diff: LockDiff, opts: RuleOptions = {}): Finding[] {
 
   for (const up of diff.upgraded) {
     const major = (v: string) => Number(v.split(".")[0]);
+    const fresh = up.to.filter((v) => !up.from.includes(v));
+    const kept = up.to.filter((v) => up.from.includes(v));
     const maxFrom = Math.max(...up.from.map(major));
-    const maxTo = Math.max(...up.to.map(major));
-    if (maxTo > maxFrom) add({ severity: "info", rule: "major-bump", package: up.name, version: up.to.join(", "), message: `Major version bump ${up.from.join(", ")} → ${up.to.join(", ")}` });
-    if (maxTo < maxFrom) add({ severity: "low", rule: "downgrade", package: up.name, version: up.to.join(", "), message: `Downgraded ${up.from.join(", ")} → ${up.to.join(", ")}` });
+    const newMajors = fresh.filter((v) => major(v) > maxFrom);
+    if (newMajors.length) {
+      const message = kept.length
+        ? `New major version ${newMajors.join(", ")} installed alongside ${kept.join(", ")}`
+        : `Major version bump ${up.from.join(", ")} → ${up.to.join(", ")}`;
+      add({ severity: "info", rule: "major-bump", package: up.name, version: newMajors.join(", "), message });
+    }
+    if (fresh.length && Math.max(...up.to.map(major)) < maxFrom) {
+      add({ severity: "low", rule: "downgrade", package: up.name, version: up.to.join(", "), message: `Downgraded ${up.from.join(", ")} → ${up.to.join(", ")}` });
+    }
   }
 
   return findings;

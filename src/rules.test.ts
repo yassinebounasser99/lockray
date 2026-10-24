@@ -87,6 +87,15 @@ describe("runRules", () => {
   });
 });
 
+describe("version changes", () => {
+  it("describes a second major version installed alongside the old one", () => {
+    const findings = check({ ...BASE, "node_modules/x/node_modules/lodash": { version: "5.0.0" } });
+    expect(findings).toEqual([
+      expect.objectContaining({ rule: "major-bump", message: "New major version 5.0.0 installed alongside 4.17.20" }),
+    ]);
+  });
+});
+
 describe("typosquatTarget", () => {
   it.each([
     ["reactt", "react"],
