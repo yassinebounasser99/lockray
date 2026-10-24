@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // src/cli.ts
-import { readFileSync as readFileSync2, writeFileSync } from "node:fs";
+import { readFileSync as readFileSync3, writeFileSync } from "node:fs";
 import { basename } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -603,74 +603,8 @@ function defaultBase() {
   return target ? `origin/${target}` : "HEAD";
 }
 
-// src/registry.ts
-var DAY = 864e5;
-async function mapLimit(items, limit, fn) {
-  const results = new Array(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await fn(items[i]);
-    }
-  });
-  await Promise.all(workers);
-  return results;
-}
-function fromPublicRegistry(pkg) {
-  return !pkg.resolved || /^https:\/\/registry\.(npmjs\.org|yarnpkg\.com)\//.test(pkg.resolved);
-}
-async function onlineFindings(pkgs, opts) {
-  const registry = (opts.registry ?? "https://registry.npmjs.org").replace(/\/$/, "");
-  const doFetch = opts.fetchImpl ?? fetch;
-  const now = (opts.now ?? /* @__PURE__ */ new Date()).getTime();
-  const candidates = pkgs.filter(fromPublicRegistry);
-  const limit = opts.limit ?? 300;
-  const toCheck = candidates.slice(0, limit);
-  const perPackage = await mapLimit(toCheck, opts.concurrency ?? 8, async (pkg) => {
-    const out = [];
-    const base = { package: pkg.name, version: pkg.version };
-    let res;
-    try {
-      res = await doFetch(`${registry}/${pkg.name.replace("/", "%2f")}`, { headers: { accept: "application/json" } });
-    } catch {
-      return out;
-    }
-    if (res.status === 404) {
-      out.push({ ...base, severity: "high", rule: "not-on-registry", message: "This package doesn't exist on the npm registry" });
-      return out;
-    }
-    if (!res.ok) return out;
-    const doc = await res.json();
-    const manifest = doc.versions?.[pkg.version];
-    if (!manifest) {
-      out.push({ ...base, severity: "high", rule: "not-on-registry", message: `Version ${pkg.version} doesn't exist on the npm registry (unpublished or fabricated)` });
-      return out;
-    }
-    if (manifest.deprecated) {
-      out.push({ ...base, severity: "low", rule: "deprecated", message: `Deprecated: ${manifest.deprecated}` });
-    }
-    const published = doc.time?.[pkg.version];
-    if (published) {
-      const ageDays = (now - Date.parse(published)) / DAY;
-      if (ageDays < opts.minReleaseAgeDays) {
-        const hours = Math.max(1, Math.round(ageDays * 24));
-        out.push({
-          ...base,
-          severity: "medium",
-          rule: "fresh-release",
-          message: `Published ${hours < 48 ? `${hours} hours` : `${Math.round(ageDays)} days`} ago. Hijacked releases are usually caught within days, so consider waiting.`
-        });
-      }
-    }
-    const created = doc.time?.created;
-    if (created && (now - Date.parse(created)) / DAY < opts.newPackageDays) {
-      out.push({ ...base, severity: "medium", rule: "new-package", message: `Package was first published ${Math.max(1, Math.round((now - Date.parse(created)) / DAY))} days ago` });
-    }
-    return out;
-  });
-  return { findings: perPackage.flat(), checked: toCheck.length, skipped: pkgs.length - toCheck.length };
-}
+// src/github.ts
+import { readFileSync as readFileSync2 } from "node:fs";
 
 // src/types.ts
 var SEVERITY_ORDER = ["high", "medium", "low", "info"];
@@ -806,6 +740,115 @@ function formatJson(report) {
   );
 }
 
+// src/github.ts
+function prNumber() {
+  const path = process.env.GITHUB_EVENT_PATH;
+  if (!path) return null;
+  try {
+    const event = JSON.parse(readFileSync2(path, "utf8"));
+    return event.pull_request?.number ?? null;
+  } catch {
+    return null;
+  }
+}
+async function upsertPullRequestComment(markdown) {
+  const token = process.env.GITHUB_TOKEN;
+  const repo = process.env.GITHUB_REPOSITORY;
+  const api = process.env.GITHUB_API_URL ?? "https://api.github.com";
+  const number = prNumber();
+  if (!token || !repo || !number) return "not a pull request run; skipped the PR comment";
+  const headers = {
+    authorization: `Bearer ${token}`,
+    accept: "application/vnd.github+json",
+    "x-github-api-version": "2022-11-28",
+    "content-type": "application/json"
+  };
+  let existing;
+  for (let page = 1; page <= 10 && !existing; page++) {
+    const res2 = await fetch(`${api}/repos/${repo}/issues/${number}/comments?per_page=100&page=${page}`, { headers });
+    if (!res2.ok) throw new Error(`listing PR comments failed: ${res2.status} ${await res2.text()}`);
+    const comments = await res2.json();
+    existing = comments.find((c2) => c2.body?.includes(COMMENT_MARKER));
+    if (comments.length < 100) break;
+  }
+  const body = JSON.stringify({ body: markdown });
+  const res = existing ? await fetch(`${api}/repos/${repo}/issues/comments/${existing.id}`, { method: "PATCH", headers, body }) : await fetch(`${api}/repos/${repo}/issues/${number}/comments`, { method: "POST", headers, body });
+  if (res.status === 403) {
+    return "no permission to comment (forked PR or missing `pull-requests: write`); the report is in the job summary instead";
+  }
+  if (!res.ok) throw new Error(`posting the PR comment failed: ${res.status} ${await res.text()}`);
+  return existing ? `updated PR comment on #${number}` : `posted PR comment on #${number}`;
+}
+
+// src/registry.ts
+var DAY = 864e5;
+async function mapLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+function fromPublicRegistry(pkg) {
+  return !pkg.resolved || /^https:\/\/registry\.(npmjs\.org|yarnpkg\.com)\//.test(pkg.resolved);
+}
+async function onlineFindings(pkgs, opts) {
+  const registry = (opts.registry ?? "https://registry.npmjs.org").replace(/\/$/, "");
+  const doFetch = opts.fetchImpl ?? fetch;
+  const now = (opts.now ?? /* @__PURE__ */ new Date()).getTime();
+  const candidates = pkgs.filter(fromPublicRegistry);
+  const limit = opts.limit ?? 300;
+  const toCheck = candidates.slice(0, limit);
+  const perPackage = await mapLimit(toCheck, opts.concurrency ?? 8, async (pkg) => {
+    const out = [];
+    const base = { package: pkg.name, version: pkg.version };
+    let res;
+    try {
+      res = await doFetch(`${registry}/${pkg.name.replace("/", "%2f")}`, { headers: { accept: "application/json" } });
+    } catch {
+      return out;
+    }
+    if (res.status === 404) {
+      out.push({ ...base, severity: "high", rule: "not-on-registry", message: "This package doesn't exist on the npm registry" });
+      return out;
+    }
+    if (!res.ok) return out;
+    const doc = await res.json();
+    const manifest = doc.versions?.[pkg.version];
+    if (!manifest) {
+      out.push({ ...base, severity: "high", rule: "not-on-registry", message: `Version ${pkg.version} doesn't exist on the npm registry (unpublished or fabricated)` });
+      return out;
+    }
+    if (manifest.deprecated) {
+      out.push({ ...base, severity: "low", rule: "deprecated", message: `Deprecated: ${manifest.deprecated}` });
+    }
+    const published = doc.time?.[pkg.version];
+    if (published) {
+      const ageDays = (now - Date.parse(published)) / DAY;
+      if (ageDays < opts.minReleaseAgeDays) {
+        const hours = Math.max(1, Math.round(ageDays * 24));
+        out.push({
+          ...base,
+          severity: "medium",
+          rule: "fresh-release",
+          message: `Published ${hours < 48 ? `${hours} hours` : `${Math.round(ageDays)} days`} ago. Hijacked releases are usually caught within days, so consider waiting.`
+        });
+      }
+    }
+    const created = doc.time?.created;
+    if (created && (now - Date.parse(created)) / DAY < opts.newPackageDays) {
+      out.push({ ...base, severity: "medium", rule: "new-package", message: `Package was first published ${Math.max(1, Math.round((now - Date.parse(created)) / DAY))} days ago` });
+    }
+    return out;
+  });
+  return { findings: perPackage.flat(), checked: toCheck.length, skipped: pkgs.length - toCheck.length };
+}
+
 // src/cli.ts
 var VERSION = "0.1.0";
 var HELP = `lockray ${VERSION}: X-ray your lockfile diffs
@@ -825,6 +868,7 @@ Options
       --online            also check the npm registry: fresh releases, brand-new packages,
                           deprecations, versions that don't exist
       --min-age <days>    with --online, flag versions published fewer than N days ago (default: 3)
+      --comment           in GitHub Actions, post the report as a sticky PR comment (needs GITHUB_TOKEN)
   -h, --help              show this help
   -v, --version           show the version
 
@@ -842,6 +886,7 @@ async function main() {
       "allow-host": { type: "string", multiple: true },
       online: { type: "boolean" },
       "min-age": { type: "string", default: "3" },
+      comment: { type: "boolean" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" }
     }
@@ -863,7 +908,7 @@ async function main() {
   if (positionals.length === 2) {
     const [oldPath, newPath] = positionals;
     const file = basename(newPath);
-    const result = analyzeLockfile(file, readFileSync2(oldPath, "utf8"), readFileSync2(newPath, "utf8"), { allowedHosts });
+    const result = analyzeLockfile(file, readFileSync3(oldPath, "utf8"), readFileSync3(newPath, "utf8"), { allowedHosts });
     report = { base: oldPath, head: newPath, files: result ? [result] : [] };
   } else if (positionals.length === 0) {
     const base = values.base ?? defaultBase();
@@ -894,6 +939,13 @@ async function main() {
   const output = format === "json" ? formatJson(report) : format === "markdown" ? formatMarkdown(report) : formatText(report);
   if (values.output) writeFileSync(values.output, output + "\n");
   else console.log(output);
+  if (values.comment) {
+    try {
+      console.error(`lockray: ${await upsertPullRequestComment(formatMarkdown(report))}`);
+    } catch (err) {
+      console.error(`lockray: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
   return exceeds(report, failOn) ? 1 : 0;
 }
 main().then(

@@ -3,6 +3,7 @@ import { basename } from "node:path";
 import { parseArgs } from "node:util";
 import { analyzeLockfile } from "./analyze.js";
 import { defaultBase, detectLockfiles, readAtRef, readWorkingTree, refExists } from "./git.js";
+import { upsertPullRequestComment } from "./github.js";
 import { onlineFindings } from "./registry.js";
 import { exceeds, formatJson, formatMarkdown, formatText, type FileReport, type Report } from "./report.js";
 import type { Severity } from "./types.js";
@@ -26,6 +27,7 @@ Options
       --online            also check the npm registry: fresh releases, brand-new packages,
                           deprecations, versions that don't exist
       --min-age <days>    with --online, flag versions published fewer than N days ago (default: 3)
+      --comment           in GitHub Actions, post the report as a sticky PR comment (needs GITHUB_TOKEN)
   -h, --help              show this help
   -v, --version           show the version
 
@@ -44,6 +46,7 @@ async function main(): Promise<number> {
       "allow-host": { type: "string", multiple: true },
       online: { type: "boolean" },
       "min-age": { type: "string", default: "3" },
+      comment: { type: "boolean" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
     },
@@ -102,6 +105,15 @@ async function main(): Promise<number> {
   const output = format === "json" ? formatJson(report) : format === "markdown" ? formatMarkdown(report) : formatText(report);
   if (values.output) writeFileSync(values.output, output + "\n");
   else console.log(output);
+
+  if (values.comment) {
+    try {
+      console.error(`lockray: ${await upsertPullRequestComment(formatMarkdown(report))}`);
+    } catch (err) {
+      // A failed comment shouldn't hide the verdict; the exit code still reflects the findings.
+      console.error(`lockray: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
   return exceeds(report, failOn) ? 1 : 0;
 }

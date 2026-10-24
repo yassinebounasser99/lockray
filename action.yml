@@ -1,0 +1,62 @@
+name: "lockray: lockfile review"
+description: "X-ray lockfile changes in pull requests: flag lockfile injection, tampered packages, install scripts, typosquats and fresh releases."
+author: "yassinebounasser99"
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  fail-on:
+    description: "Fail the check on findings at or above this severity: high, medium, low, info or none"
+    default: "high"
+  online:
+    description: "Also check the npm registry for fresh releases, brand-new packages, deprecations and missing versions"
+    default: "true"
+  min-age:
+    description: "With online checks, flag versions published fewer than this many days ago"
+    default: "3"
+  allow-host:
+    description: "Extra trusted tarball hosts, comma-separated (for private registries)"
+    default: ""
+  comment:
+    description: "Post the report as a sticky pull request comment"
+    default: "true"
+  working-directory:
+    description: "Directory containing the lockfile"
+    default: "."
+  github-token:
+    description: "Token used to post the PR comment"
+    default: ${{ github.token }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Fetch the base commit
+      if: github.event.pull_request.base.sha != ''
+      shell: bash
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
+
+    - name: Review lockfile changes
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      # Inputs go through env vars, never interpolated into the script, so a crafted value can't inject shell.
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        LOCKRAY_BASE: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+        LOCKRAY_FAIL_ON: ${{ inputs.fail-on }}
+        LOCKRAY_ONLINE: ${{ inputs.online }}
+        LOCKRAY_MIN_AGE: ${{ inputs.min-age }}
+        LOCKRAY_ALLOW_HOST: ${{ inputs.allow-host }}
+        LOCKRAY_COMMENT: ${{ inputs.comment }}
+      run: |
+        args=(--base "$LOCKRAY_BASE" --fail-on "$LOCKRAY_FAIL_ON" --min-age "$LOCKRAY_MIN_AGE" --format markdown --output "$RUNNER_TEMP/lockray.md")
+        [ "$LOCKRAY_ONLINE" = "true" ] && args+=(--online)
+        [ "$LOCKRAY_COMMENT" = "true" ] && args+=(--comment)
+        [ -n "$LOCKRAY_ALLOW_HOST" ] && args+=(--allow-host "$LOCKRAY_ALLOW_HOST")
+
+        status=0
+        node "$GITHUB_ACTION_PATH/dist/cli.mjs" "${args[@]}" || status=$?
+        [ -f "$RUNNER_TEMP/lockray.md" ] && cat "$RUNNER_TEMP/lockray.md" >> "$GITHUB_STEP_SUMMARY"
+        exit $status
