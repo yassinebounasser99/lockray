@@ -10,7 +10,7 @@ import { lockfileKind } from "./parse/index.js";
 import { formatSarif } from "./sarif.js";
 import type { LockfileKind, Severity } from "./types.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 const HELP = `lockray ${VERSION}: X-ray your lockfile diffs
 

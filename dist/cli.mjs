@@ -8350,7 +8350,7 @@ function formatSarif({ report, texts, version }) {
 }
 
 // src/cli.ts
-var VERSION = "0.1.0";
+var VERSION = "0.2.0";
 var HELP = `lockray ${VERSION}: X-ray your lockfile diffs
 
 Usage
