@@ -53,7 +53,7 @@ const sortFindings = (xs: Finding[]) =>
 
 // ── Terminal ────────────────────────────────────────────────────────────────
 
-const useColor = () => process.stdout.isTTY && !process.env.NO_COLOR;
+const useColor = () => !process.env.NO_COLOR && (Boolean(process.env.FORCE_COLOR) || process.stdout.isTTY);
 const paint = (code: string) => (s: string) => (useColor() ? `\x1b[${code}m${s}\x1b[0m` : s);
 const c = { red: paint("31"), yellow: paint("33"), blue: paint("34"), gray: paint("90"), bold: paint("1"), green: paint("32") };
 

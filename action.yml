@@ -1,5 +1,5 @@
 name: "lockray: lockfile review"
-description: "X-ray lockfile changes in pull requests: flag lockfile injection, tampered packages, install scripts, typosquats and fresh releases."
+description: "Review npm, pnpm and Yarn lockfile changes in PRs: flag lockfile injection, tampered packages, install scripts, typosquats and fresh releases."
 author: "yassinebounasser99"
 branding:
   icon: "shield"

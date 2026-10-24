@@ -1,13 +1,25 @@
-# 🔬 lockray
+<h1 align="center">🔬 lockray</h1>
 
-**X-ray your lockfile diffs.** Catch lockfile injection, tampered packages, sneaky install scripts and typosquats before they merge.
+<p align="center"><b>X-ray your lockfile diffs.</b><br>Catch lockfile injection, tampered packages, sneaky install scripts and typosquats before they merge.</p>
 
-[![CI](https://github.com/yassinebounasser99/lockray/actions/workflows/ci.yml/badge.svg)](https://github.com/yassinebounasser99/lockray/actions/workflows/ci.yml)
-![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
-![dependencies](https://img.shields.io/badge/runtime%20dependencies-0-blue)
-![license](https://img.shields.io/badge/license-MIT-lightgrey)
+<p align="center">
+  <a href="https://lockray.vercel.app"><b>▶ Try it in your browser</b></a> ·
+  <a href="#github-action-review-every-pr">GitHub Action</a> ·
+  <a href="#cli">CLI</a> ·
+  <a href="#what-it-checks">Rules</a>
+</p>
 
-Every dependency update ships a `package-lock.json` diff that is thousands of lines long, and nobody reads it. Attackers count on that:
+<p align="center">
+  <a href="https://github.com/yassinebounasser99/lockray/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/yassinebounasser99/lockray/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="npm, pnpm, yarn" src="https://img.shields.io/badge/lockfiles-npm%20%7C%20pnpm%20%7C%20yarn-a371f7">
+  <img alt="zero runtime dependencies" src="https://img.shields.io/badge/runtime%20deps-0-blue">
+  <img alt="SARIF" src="https://img.shields.io/badge/output-SARIF%20%7C%20Markdown%20%7C%20JSON-lightgrey">
+  <img alt="MIT" src="https://img.shields.io/badge/license-MIT-lightgrey">
+</p>
+
+<p align="center"><img src="docs/demo.svg" alt="lockray catching an injected download URL, a swapped tarball, a plain-HTTP package and a typosquat with an install script" width="100%"></p>
+
+Every dependency update ships a lockfile diff that is thousands of lines long, and nobody reads it. Attackers count on that:
 
 - **Lockfile injection:** change one `resolved` URL so `lodash` downloads from the attacker's server. The PR still says "bump deps".
 - **Tampered tarballs:** same version number, different bytes.
@@ -16,26 +28,14 @@ Every dependency update ships a `package-lock.json` diff that is thousands of li
 
 `npm audit` looks for known vulnerabilities in what's already installed; it doesn't review what a pull request changes in the lockfile. lockray reads that diff before anything is installed and tells you, in plain language, what actually changed and what looks dangerous.
 
-```text
-$ npx github:yassinebounasser99/lockray examples/before.package-lock.json examples/after.package-lock.json
+**Try it in 10 seconds**, no install:
 
-after.package-lock.json
-  +3 added  ↑1 changed  -0 removed  ⚠ 1 modified in place
-  HIGH   colors-util@2.0.0 [insecure-source]
-         Downloaded over plain HTTP from registry.npmjs.org
-  HIGH   lodash@4.17.21 [integrity-changed]
-         Integrity hash changed but the version didn't. A published npm version is immutable, so the tarball was swapped.
-  HIGH   lodash@4.17.21 [source-changed]
-         Download URL changed for the same version: https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz → https://cdn.evil.example/lodash-4.17.21.tgz
-  MEDIUM expresss@1.0.2 [install-script]
-         Runs an install script (preinstall/install/postinstall) on every npm install
-  MEDIUM expresss@1.0.2 [typosquat]
-         Name is suspiciously close to the popular package "express"
-  INFO   express@5.1.0 [major-bump]
-         Major version bump 4.21.2 → 5.1.0
-
-3 high · 2 medium · 1 info
+```bash
+npx github:yassinebounasser99/lockray                         # what did my last install change?
+npx github:yassinebounasser99/lockray --base origin/main       # what does this branch change?
 ```
+
+Or paste two lockfiles into the **[playground](https://lockray.vercel.app)**. It runs entirely in your browser.
 
 ## GitHub Action: review every PR
 
@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: yassinebounasser99/lockray@main
+      - uses: yassinebounasser99/lockray@v0
 ```
 
 The comment is **sticky**: re-runs update it instead of adding new ones. Here is a real one, from a [demo PR](https://github.com/yassinebounasser99/lockray/pull/1) that simulated a lockfile injection:
@@ -171,6 +171,16 @@ Findings from families of platform-specific packages (e.g. 25 `@rollup/rollup-*`
 5. Renders terminal, markdown or JSON output, and sets the exit code.
 
 There are no runtime dependencies: one bundled file (`dist/cli.mjs`) built with esbuild. The test suite covers parsers, rules, registry checks and reports.
+
+## FAQ
+
+**Does it replace `npm audit` / Dependabot / Renovate?** No, it complements them. They tell you *which* updates to make and which installed versions have known CVEs. lockray reviews *what a given lockfile change actually does*, including changes no advisory database knows about.
+
+**Is it safe to run on pull requests from forks?** Yes. It only reads lockfile text with `git show`; it never installs or executes the dependencies under review. On forked PRs the default token can't comment, so the report goes to the job summary.
+
+**False positive?** Use `--allow-host` for private registries, and please [open an issue](https://github.com/yassinebounasser99/lockray/issues/new?template=false_positive.yml). Precision matters more than recall for a tool like this.
+
+**How do I know lockray itself is safe?** It has no runtime dependencies, and the bundle (`dist/cli.mjs`) is committed unminified so you can read exactly what runs. CI rebuilds it and fails if it doesn't match the source.
 
 ## Development
 

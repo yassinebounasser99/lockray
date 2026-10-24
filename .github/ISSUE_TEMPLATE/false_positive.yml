@@ -1,0 +1,29 @@
+name: False positive
+description: lockray flagged something that is actually fine
+labels: ["false positive"]
+body:
+  - type: input
+    id: rule
+    attributes:
+      label: Rule
+      description: The rule id shown in brackets, e.g. typosquat or untrusted-host
+    validations:
+      required: true
+  - type: textarea
+    id: finding
+    attributes:
+      label: What lockray reported
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it's a false positive
+    validations:
+      required: true
+  - type: dropdown
+    id: lockfile
+    attributes:
+      label: Lockfile
+      options: [package-lock.json, pnpm-lock.yaml, yarn.lock]

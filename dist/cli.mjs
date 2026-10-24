@@ -8008,7 +8008,7 @@ function collapseFindings(xs, min = 3) {
   return out;
 }
 var sortFindings = (xs) => [...xs].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity) || a.package.localeCompare(b.package));
-var useColor = () => process.stdout.isTTY && !process.env.NO_COLOR;
+var useColor = () => !process.env.NO_COLOR && (Boolean(process.env.FORCE_COLOR) || process.stdout.isTTY);
 var paint = (code) => (s) => useColor() ? `\x1B[${code}m${s}\x1B[0m` : s;
 var c = { red: paint("31"), yellow: paint("33"), blue: paint("34"), gray: paint("90"), bold: paint("1"), green: paint("32") };
 var SEV_TEXT = {

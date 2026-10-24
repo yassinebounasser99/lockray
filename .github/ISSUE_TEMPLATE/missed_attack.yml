@@ -1,0 +1,17 @@
+name: Missed attack or new rule idea
+description: A suspicious lockfile change lockray should catch (for bypasses, use a private security advisory instead)
+labels: ["rule idea"]
+body:
+  - type: textarea
+    id: change
+    attributes:
+      label: The lockfile change
+      description: A minimal before/after excerpt
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: incident
+    attributes:
+      label: Real-world incident or reference
+      description: Links to write-ups help prioritize
