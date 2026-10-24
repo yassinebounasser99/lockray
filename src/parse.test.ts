@@ -68,7 +68,7 @@ lodash@^4.17.20, lodash@^4.17.21:
 describe("parseYarnLock", () => {
   it("reads v1 blocks, scoped names and aliases", () => {
     const lock = parseYarnLock(YARN);
-    expect([...lock.packages.keys()].sort()).toEqual(["@babel/code-frame@7.12.13", "lodash@4.17.21", "string-width-cjs@4.2.3"]);
+    expect([...lock.packages.keys()].sort()).toEqual(["@babel/code-frame@7.12.13", "lodash@4.17.21", "string-width@4.2.3"]);
     expect(lock.packages.get("lodash@4.17.21")?.integrity).toMatch(/^sha512-/);
   });
 

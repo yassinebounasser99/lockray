@@ -4,8 +4,11 @@ import type { LockedPackage, Lockfile } from "../types.js";
 function nameFromSpecifiers(header: string): string | null {
   const first = header.replace(/:$/, "").split(",")[0]?.trim().replace(/^"|"$/g, "");
   if (!first) return null;
-  // The range starts at the first "@" after a possible scope prefix. For aliases
-  // ("string-width-cjs@npm:string-width@^4.2.0") that keeps the alias name, which is what node_modules uses.
+  // Aliases ("string-width-cjs@npm:string-width@^4.2.0") resolve to the real package,
+  // matching how npm lockfiles record them.
+  const alias = first.match(/@npm:(@?[^@]+)@/);
+  if (alias) return alias[1]!;
+  // Otherwise the range starts at the first "@" after a possible scope prefix.
   const at = first.indexOf("@", 1);
   return at === -1 ? first : first.slice(0, at);
 }
