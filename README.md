@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/yassinebounasser99/lockray/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/yassinebounasser99/lockray/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://www.npmjs.com/package/lockray"><img alt="npm version" src="https://img.shields.io/npm/v/lockray?color=cb3837&label=npm"></a>
   <img alt="npm, pnpm, yarn" src="https://img.shields.io/badge/lockfiles-npm%20%7C%20pnpm%20%7C%20yarn-a371f7">
   <img alt="zero runtime dependencies" src="https://img.shields.io/badge/runtime%20deps-0-blue">
   <img alt="SARIF" src="https://img.shields.io/badge/output-SARIF%20%7C%20Markdown%20%7C%20JSON-lightgrey">
@@ -31,8 +32,8 @@ Every dependency update ships a lockfile diff that is thousands of lines long, a
 **Try it in 10 seconds**, no install:
 
 ```bash
-npx github:yassinebounasser99/lockray                         # what did my last install change?
-npx github:yassinebounasser99/lockray --base origin/main       # what does this branch change?
+npx lockray                         # what did my last install change?
+npx lockray --base origin/main      # what does this branch change?
 ```
 
 Or paste two lockfiles into the **[playground](https://lockray.vercel.app)**. It runs entirely in your browser.
@@ -107,13 +108,13 @@ The Action never installs your dependencies: it only reads lockfile text, so it'
 
 ```bash
 # What did my last `npm install` change? (working tree vs HEAD)
-npx github:yassinebounasser99/lockray
+npx lockray
 
 # Compare branches
-npx github:yassinebounasser99/lockray --base origin/main --head HEAD
+npx lockray --base origin/main --head HEAD
 
 # Compare two files, add registry checks, emit JSON
-npx github:yassinebounasser99/lockray old.json new.json --online --format json
+npx lockray old.json new.json --online --format json
 ```
 
 | Option | |
