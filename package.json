@@ -1,6 +1,6 @@
 {
   "name": "lockray",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "X-ray your lockfile diffs: catch lockfile injection, tampered packages, install scripts and typosquats before they merge.",
   "license": "MIT",
   "type": "module",

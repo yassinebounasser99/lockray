@@ -49,10 +49,7 @@ runs:
     - name: Review lockfile changes
       id: review
       shell: bash
-      sarif:
-    description: "Also write a SARIF report (path exposed as the sarif-file output) for github/codeql-action/upload-sarif"
-    default: "false"
-  working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ inputs.working-directory }}
       # Inputs go through env vars, never interpolated into the script, so a crafted value can't inject shell.
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
